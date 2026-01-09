@@ -840,7 +840,9 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         {
             let (span, sugg) = if let Some(snippet) =
                 self.tcx.sess.source_map().span_to_snippet(obligation.cause.span).ok()
-                && snippet.starts_with("|")
+                && (snippet.starts_with("|")
+                    || snippet.starts_with("async ")
+                    || snippet.starts_with("async|"))
             {
                 (obligation.cause.span, format!("({snippet})({args})"))
             } else {
