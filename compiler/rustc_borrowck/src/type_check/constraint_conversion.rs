@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::LocalDefId;
 use rustc_infer::infer::SubregionOrigin;
@@ -274,7 +276,7 @@ impl<'a, 'tcx> ConstraintConversion<'a, 'tcx> {
 
     fn add_type_test(&mut self, type_test: TypeTest<'tcx>) {
         debug!("add_type_test(type_test={:?})", type_test);
-        self.constraints.type_tests.push(type_test);
+        Rc::get_mut(&mut self.constraints.type_tests).unwrap().push(type_test);
     }
 
     fn normalize_and_add_type_outlives_constraints(
