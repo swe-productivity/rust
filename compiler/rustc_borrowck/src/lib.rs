@@ -293,7 +293,7 @@ struct CollectRegionConstraintsResult<'tcx> {
     borrow_set: BorrowSet<'tcx>,
     location_table: PoloniusLocationTable,
     location_map: Rc<DenseLocationMap>,
-    universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     region_bound_pairs: Frozen<RegionBoundPairs<'tcx>>,
     known_type_outlives_obligations: Frozen<Vec<ty::PolyTypeOutlivesPredicate<'tcx>>>,
     constraints: MirTypeckRegionConstraints<'tcx>,

@@ -1,7 +1,6 @@
 use std::iter;
 use std::rc::Rc;
 
-use rustc_data_structures::frozen::Frozen;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::outlives::env::RegionBoundPairs;
@@ -65,7 +64,7 @@ pub(crate) enum DeferredOpaqueTypeError<'tcx> {
 /// encounter inference variables, e.g. when checking user types.
 pub(crate) fn clone_and_resolve_opaque_types<'tcx>(
     infcx: &BorrowckInferCtxt<'tcx>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: &UniversalRegionRelations<'tcx>,
     constraints: &mut MirTypeckRegionConstraints<'tcx>,
 ) -> (OpaqueTypeStorageEntries, Vec<(OpaqueTypeKey<'tcx>, ProvisionalHiddenType<'tcx>)>) {
     let opaque_types = infcx.clone_opaque_types();
@@ -177,7 +176,7 @@ struct DefiningUse<'tcx> {
 /// recheck all uses of the opaques regardless.
 pub(crate) fn compute_definition_site_hidden_types<'tcx>(
     infcx: &BorrowckInferCtxt<'tcx>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: &UniversalRegionRelations<'tcx>,
     constraints: &MirTypeckRegionConstraints<'tcx>,
     location_map: Rc<DenseLocationMap>,
     hidden_types: &mut FxIndexMap<LocalDefId, ty::DefinitionSiteHiddenType<'tcx>>,

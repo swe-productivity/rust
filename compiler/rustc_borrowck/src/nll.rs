@@ -6,7 +6,6 @@ use std::rc::Rc;
 use std::str::FromStr;
 
 use polonius_engine::{Algorithm, AllFacts, Output};
-use rustc_data_structures::frozen::Frozen;
 use rustc_index::IndexSlice;
 use rustc_middle::mir::pretty::PrettyPrintMirOptions;
 use rustc_middle::mir::{Body, MirDumper, PassWhere, Promoted};
@@ -86,7 +85,7 @@ pub(crate) fn compute_closure_requirements_modulo_opaques<'tcx>(
     infcx: &BorrowckInferCtxt<'tcx>,
     body: &Body<'tcx>,
     location_map: Rc<DenseLocationMap>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     constraints: &MirTypeckRegionConstraints<'tcx>,
 ) -> Option<ClosureRegionRequirements<'tcx>> {
     // FIXME(#146079): we shouldn't have to clone all this stuff here.
@@ -99,7 +98,7 @@ pub(crate) fn compute_closure_requirements_modulo_opaques<'tcx>(
     let mut regioncx = RegionInferenceContext::new(
         &infcx,
         lowered_constraints,
-        universal_region_relations.clone(),
+        universal_region_relations,
         location_map,
     );
 
@@ -118,7 +117,7 @@ pub(crate) fn compute_regions<'tcx>(
     move_data: &MoveData<'tcx>,
     borrow_set: &BorrowSet<'tcx>,
     location_map: Rc<DenseLocationMap>,
-    universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     constraints: MirTypeckRegionConstraints<'tcx>,
     mut polonius_facts: Option<AllFacts<RustcFacts>>,
     polonius_context: Option<PoloniusContext>,

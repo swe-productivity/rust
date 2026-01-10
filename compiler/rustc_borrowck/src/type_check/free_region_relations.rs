@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use rustc_data_structures::frozen::Frozen;
 use rustc_data_structures::transitive_relation::{TransitiveRelation, TransitiveRelationBuilder};
 use rustc_hir::def::DefKind;
@@ -19,7 +21,6 @@ use crate::type_check::{Locations, MirTypeckRegionConstraints, constraint_conver
 use crate::universal_regions::UniversalRegions;
 
 #[derive(Debug)]
-#[derive(Clone)] // FIXME(#146079)
 pub(crate) struct UniversalRegionRelations<'tcx> {
     pub(crate) universal_regions: UniversalRegions<'tcx>,
 
@@ -42,7 +43,7 @@ pub(crate) struct UniversalRegionRelations<'tcx> {
 type NormalizedInputsAndOutput<'tcx> = Vec<Ty<'tcx>>;
 
 pub(crate) struct CreateResult<'tcx> {
-    pub(crate) universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    pub(crate) universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     pub(crate) region_bound_pairs: Frozen<RegionBoundPairs<'tcx>>,
     pub(crate) known_type_outlives_obligations: Frozen<Vec<ty::PolyTypeOutlivesPredicate<'tcx>>>,
     pub(crate) normalized_inputs_and_output: NormalizedInputsAndOutput<'tcx>,
@@ -310,7 +311,7 @@ impl<'tcx> UniversalRegionRelationsBuilder<'_, 'tcx> {
         }
 
         CreateResult {
-            universal_region_relations: Frozen::freeze(UniversalRegionRelations {
+            universal_region_relations: Rc::new(UniversalRegionRelations {
                 universal_regions: self.universal_regions,
                 outlives: self.outlives.freeze(),
                 inverse_outlives: self.inverse_outlives.freeze(),

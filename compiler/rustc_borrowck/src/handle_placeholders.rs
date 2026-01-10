@@ -264,7 +264,7 @@ pub(super) fn region_definitions<'tcx>(
 /// Every constraint added by this method is an internal `IllegalUniverse` constraint.
 pub(crate) fn compute_sccs_applying_placeholder_outlives_constraints<'tcx>(
     constraints: MirTypeckRegionConstraints<'tcx>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: &UniversalRegionRelations<'tcx>,
     infcx: &BorrowckInferCtxt<'tcx>,
 ) -> LoweredConstraints<'tcx> {
     let universal_regions = &universal_region_relations.universal_regions;

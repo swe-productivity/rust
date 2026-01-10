@@ -212,7 +212,7 @@ impl<'tcx> BorrowCheckRootCtxt<'tcx> {
             &input.infcx,
             &input.body_owned,
             Rc::clone(&input.location_map),
-            &input.universal_region_relations,
+            Rc::clone(&input.universal_region_relations),
             &input.constraints,
         )
     }
