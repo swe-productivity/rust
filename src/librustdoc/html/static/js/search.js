@@ -1633,10 +1633,12 @@ class DocSearch {
          * parent,
          * trait_parent,
          * deprecated,
+         * is_unstable,
          * associated_item_disambiguator
          * @type {rustdoc.ArrayWithOptionals<[
          *     number,
          *     rustdoc.ItemType,
+         *     number,
          *     number,
          *     number,
          *     number,
@@ -1653,7 +1655,8 @@ class DocSearch {
             parent: raw[4] === 0 ? null : raw[4] - 1,
             traitParent: raw[5] === 0 ? null : raw[5] - 1,
             deprecated: raw[6] === 1 ? true : false,
-            associatedItemDisambiguator: raw.length === 7 ? null : raw[7],
+            isUnstable: raw[7] === 1 ? true : false,
+            associatedItemDisambiguator: raw.length === 8 ? null : raw[8],
         };
     }
 
@@ -1946,6 +1949,7 @@ class DocSearch {
             path,
             functionData,
             deprecated: entry ? entry.deprecated : false,
+            isUnstable: entry ? entry.isUnstable : false,
             parent,
             traitParent,
         };
@@ -4936,10 +4940,16 @@ async function addTab(results, query, display, finishedCallback, isTypeSearch) {
 <b>${obj.alias}</b><i class="grey">&nbsp;- see&nbsp;</i>\
 </div>`;
         }
+        const unstableBadge = obj.item.isUnstable ?
+            "<span class=\"stab unstable\" title=\"This is a nightly-only experimental API.\">\
+🔬\
+</span>"
+            : "";
         resultName.insertAdjacentHTML(
             "beforeend",
             `<div class="path">${alias}\
 ${obj.displayPath}<span class="${type}">${name}</span>\
+${unstableBadge ? " " + unstableBadge : ""}\
 </div>`);
 
         const description = document.createElement("div");
