@@ -30,6 +30,9 @@
                                             {% else %}
                                                 {{link.name}}
                                         {% endmatch %}
+                                        {% if link.is_unstable %}
+                                            {# +#} <span class="stab unstable" title="This is a nightly-only experimental API.">🔬</span>
+                                        {% endif %}
                                     </a>
                                     {% if !link.children.is_empty() %}
                                         <ul>

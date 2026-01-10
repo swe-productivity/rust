@@ -91,6 +91,8 @@ pub(crate) struct Link<'a> {
     href: Cow<'a, str>,
     /// Nested list of links (used only in top-toc)
     children: Vec<Link<'a>>,
+    /// Whether this item is unstable
+    is_unstable: bool,
 }
 
 impl Ord for Link<'_> {
@@ -115,7 +117,20 @@ impl PartialOrd for Link<'_> {
 
 impl<'a> Link<'a> {
     pub fn new(href: impl Into<Cow<'a, str>>, name: impl Into<Cow<'a, str>>) -> Self {
-        Self { href: href.into(), name: name.into(), children: vec![], name_html: None }
+        Self::new_with_stability(href, name, false)
+    }
+    pub fn new_with_stability(
+        href: impl Into<Cow<'a, str>>,
+        name: impl Into<Cow<'a, str>>,
+        is_unstable: bool,
+    ) -> Self {
+        Self {
+            href: href.into(),
+            name: name.into(),
+            children: vec![],
+            name_html: None,
+            is_unstable,
+        }
     }
     pub fn empty() -> Link<'static> {
         Link::new("", "")
@@ -257,8 +272,10 @@ fn docblock_toc<'a>(
                         // Going the full six could break the layout,
                         // so we have to cut it off somewhere.
                         children: vec![],
+                        is_unstable: false,
                     })
                     .collect(),
+                is_unstable: false,
             }
         })
         .collect();
@@ -299,11 +316,19 @@ fn sidebar_trait<'a>(
         items: &'a [clean::Item],
         filt: impl Fn(&clean::Item) -> bool,
         ty: &str,
+        tcx: TyCtxt<'_>,
     ) -> Vec<Link<'a>> {
         let mut res = items
             .iter()
             .filter_map(|m: &clean::Item| match m.name {
-                Some(ref name) if filt(m) => Some(Link::new(format!("{ty}.{name}"), name.as_str())),
+                Some(ref name) if filt(m) => {
+                    let is_unstable = m.stability(tcx).map_or(false, |stab| stab.is_unstable());
+                    Some(Link::new_with_stability(
+                        format!("{ty}.{name}"),
+                        name.as_str(),
+                        is_unstable,
+                    ))
+                }
                 _ => None,
             })
             .collect::<Vec<Link<'a>>>();
@@ -311,14 +336,19 @@ fn sidebar_trait<'a>(
         res
     }
 
-    let req_assoc = filter_items(&t.items, |m| m.is_required_associated_type(), "associatedtype");
-    let prov_assoc = filter_items(&t.items, |m| m.is_associated_type(), "associatedtype");
-    let req_assoc_const =
-        filter_items(&t.items, |m| m.is_required_associated_const(), "associatedconstant");
+    let req_assoc =
+        filter_items(&t.items, |m| m.is_required_associated_type(), "associatedtype", cx.tcx());
+    let prov_assoc = filter_items(&t.items, |m| m.is_associated_type(), "associatedtype", cx.tcx());
+    let req_assoc_const = filter_items(
+        &t.items,
+        |m| m.is_required_associated_const(),
+        "associatedconstant",
+        cx.tcx(),
+    );
     let prov_assoc_const =
-        filter_items(&t.items, |m| m.is_associated_const(), "associatedconstant");
-    let req_method = filter_items(&t.items, |m| m.is_ty_method(), "tymethod");
-    let prov_method = filter_items(&t.items, |m| m.is_method(), "method");
+        filter_items(&t.items, |m| m.is_associated_const(), "associatedconstant", cx.tcx());
+    let req_method = filter_items(&t.items, |m| m.is_ty_method(), "tymethod", cx.tcx());
+    let prov_method = filter_items(&t.items, |m| m.is_method(), "method", cx.tcx());
     let mut foreign_impls = vec![];
     if let Some(implementors) = cx.cache().implementors.get(&it.item_id.expect_def_id()) {
         foreign_impls.extend(
@@ -441,8 +471,8 @@ fn sidebar_assoc_items<'a>(
         {
             let used_links_bor = &mut used_links;
             for impl_ in v.iter().map(|i| i.inner_impl()).filter(|i| i.trait_.is_none()) {
-                assoc_consts.extend(get_associated_constants(impl_, used_links_bor));
-                assoc_types.extend(get_associated_types(impl_, used_links_bor));
+                assoc_consts.extend(get_associated_constants(impl_, used_links_bor, cx.tcx()));
+                assoc_types.extend(get_associated_types(impl_, used_links_bor, cx.tcx()));
                 methods.extend(get_methods(impl_, false, used_links_bor, false, cx.tcx()));
             }
             // We want links' order to be reproducible so we don't use unstable sort.
@@ -748,9 +778,11 @@ fn get_methods<'a>(
                 && item.is_method()
                 && (!for_deref || super::should_render_item(item, deref_mut, tcx))
             {
-                Some(Link::new(
+                let is_unstable = item.stability(tcx).map_or(false, |stab| stab.is_unstable());
+                Some(Link::new_with_stability(
                     get_next_url(used_links, format!("{typ}.{name}", typ = ItemType::Method)),
                     name.as_str(),
+                    is_unstable,
                 ))
             } else {
                 None
@@ -762,6 +794,7 @@ fn get_methods<'a>(
 fn get_associated_constants<'a>(
     i: &'a clean::Impl,
     used_links: &mut FxHashSet<String>,
+    tcx: TyCtxt<'_>,
 ) -> Vec<Link<'a>> {
     i.items
         .iter()
@@ -769,9 +802,11 @@ fn get_associated_constants<'a>(
             if let Some(ref name) = item.name
                 && item.is_associated_const()
             {
-                Some(Link::new(
+                let is_unstable = item.stability(tcx).map_or(false, |stab| stab.is_unstable());
+                Some(Link::new_with_stability(
                     get_next_url(used_links, format!("{typ}.{name}", typ = ItemType::AssocConst)),
                     name.as_str(),
+                    is_unstable,
                 ))
             } else {
                 None
@@ -783,6 +818,7 @@ fn get_associated_constants<'a>(
 fn get_associated_types<'a>(
     i: &'a clean::Impl,
     used_links: &mut FxHashSet<String>,
+    tcx: TyCtxt<'_>,
 ) -> Vec<Link<'a>> {
     i.items
         .iter()
@@ -790,9 +826,11 @@ fn get_associated_types<'a>(
             if let Some(ref name) = item.name
                 && item.is_associated_type()
             {
-                Some(Link::new(
+                let is_unstable = item.stability(tcx).map_or(false, |stab| stab.is_unstable());
+                Some(Link::new_with_stability(
                     get_next_url(used_links, format!("{typ}.{name}", typ = ItemType::AssocType)),
                     name.as_str(),
+                    is_unstable,
                 ))
             } else {
                 None
