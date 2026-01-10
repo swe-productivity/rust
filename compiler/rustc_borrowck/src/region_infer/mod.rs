@@ -117,7 +117,7 @@ pub struct RegionInferenceContext<'tcx> {
 
     /// Information about how the universally quantified regions in
     /// scope on this function relate to one another.
-    universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
 }
 
 #[derive(Debug)]
@@ -292,7 +292,7 @@ impl<'tcx> RegionInferenceContext<'tcx> {
     pub(crate) fn new(
         infcx: &BorrowckInferCtxt<'tcx>,
         lowered_constraints: LoweredConstraints<'tcx>,
-        universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+        universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
         location_map: Rc<DenseLocationMap>,
     ) -> Self {
         let universal_regions = &universal_region_relations.universal_regions;
