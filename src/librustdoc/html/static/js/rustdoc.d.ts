@@ -243,6 +243,7 @@ declare namespace rustdoc {
         parent: number?,
         traitParent: number?,
         deprecated: boolean,
+        isUnstable: boolean,
         associatedItemDisambiguator: string?,
     }
 
@@ -292,6 +293,7 @@ declare namespace rustdoc {
         path: PathData?,
         functionData: FunctionData?,
         deprecated: boolean,
+        isUnstable: boolean,
         parent: RowParent,
         traitParent: RowParent,
     }

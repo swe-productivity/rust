@@ -594,6 +594,7 @@ fn add_item_to_search_index(tcx: TyCtxt<'_>, cache: &mut Cache, item: &clean::It
     );
     let aliases = item.attrs.get_doc_aliases();
     let deprecation = item.deprecation(tcx);
+    let is_unstable = item.stability(tcx).map_or(false, |stab| stab.is_unstable());
     let index_item = IndexItem {
         ty: item.type_(),
         defid: Some(defid),
@@ -609,6 +610,7 @@ fn add_item_to_search_index(tcx: TyCtxt<'_>, cache: &mut Cache, item: &clean::It
         search_type,
         aliases,
         deprecation,
+        is_unstable,
     };
 
     cache.search_index.push(index_item);
