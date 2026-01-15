@@ -513,11 +513,14 @@ pub enum ConstArgKind<'hir, Unambig = ()> {
     Struct(QPath<'hir>, &'hir [&'hir ConstArgExprField<'hir>]),
     /// Tuple constructor variant
     TupleCall(QPath<'hir>, &'hir [&'hir ConstArg<'hir>]),
+    /// Array literal argument
+    Array(&'hir ConstArgArrayExpr<'hir>),
     /// Error const
     Error(ErrorGuaranteed),
     /// This variant is not always used to represent inference consts, sometimes
     /// [`GenericArg::Infer`] is used instead.
     Infer(Unambig),
+    Literal(LitKind),
 }
 
 #[derive(Clone, Copy, Debug, HashStable_Generic)]
@@ -526,6 +529,12 @@ pub struct ConstArgExprField<'hir> {
     pub span: Span,
     pub field: Ident,
     pub expr: &'hir ConstArg<'hir>,
+}
+
+#[derive(Clone, Copy, Debug, HashStable_Generic)]
+pub struct ConstArgArrayExpr<'hir> {
+    pub span: Span,
+    pub elems: &'hir [&'hir ConstArg<'hir>],
 }
 
 #[derive(Clone, Copy, Debug, HashStable_Generic)]
@@ -1396,6 +1405,14 @@ impl AttributeExt for Attribute {
     fn doc_str(&self) -> Option<Symbol> {
         match &self {
             Attribute::Parsed(AttributeKind::DocComment { comment, .. }) => Some(*comment),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn deprecation_note(&self) -> Option<Ident> {
+        match &self {
+            Attribute::Parsed(AttributeKind::Deprecation { deprecation, .. }) => deprecation.note,
             _ => None,
         }
     }
@@ -2616,6 +2633,12 @@ impl Expr<'_> {
                 // them being used only for its side-effects.
                 base.can_have_side_effects()
             }
+            ExprKind::Binary(_, lhs, rhs) => {
+                // This isn't exactly true for all `Binary`, but we are using this
+                // method exclusively for diagnostics and there's a *cultural* pressure against
+                // them being used only for its side-effects.
+                lhs.can_have_side_effects() || rhs.can_have_side_effects()
+            }
             ExprKind::Struct(_, fields, init) => {
                 let init_side_effects = match init {
                     StructTailExpr::Base(init) => init.can_have_side_effects(),
@@ -2638,13 +2661,13 @@ impl Expr<'_> {
                 },
                 args,
             ) => args.iter().any(|arg| arg.can_have_side_effects()),
+            ExprKind::Repeat(arg, _) => arg.can_have_side_effects(),
             ExprKind::If(..)
             | ExprKind::Match(..)
             | ExprKind::MethodCall(..)
             | ExprKind::Call(..)
             | ExprKind::Closure { .. }
             | ExprKind::Block(..)
-            | ExprKind::Repeat(..)
             | ExprKind::Break(..)
             | ExprKind::Continue(..)
             | ExprKind::Ret(..)
@@ -2655,7 +2678,6 @@ impl Expr<'_> {
             | ExprKind::InlineAsm(..)
             | ExprKind::AssignOp(..)
             | ExprKind::ConstBlock(..)
-            | ExprKind::Binary(..)
             | ExprKind::Yield(..)
             | ExprKind::DropTemps(..)
             | ExprKind::Err(_) => true,
@@ -3290,7 +3312,7 @@ pub enum ImplItemKind<'hir> {
 /// * the `G<Ty> = Ty` in `Trait<G<Ty> = Ty>`
 /// * the `A: Bound` in `Trait<A: Bound>`
 /// * the `RetTy` in `Trait(ArgTy, ArgTy) -> RetTy`
-/// * the `C = { Ct }` in `Trait<C = { Ct }>` (feature `associated_const_equality`)
+/// * the `C = { Ct }` in `Trait<C = { Ct }>` (feature `min_generic_const_args`)
 /// * the `f(..): Bound` in `Trait<f(..): Bound>` (feature `return_type_notation`)
 #[derive(Debug, Clone, Copy, HashStable_Generic)]
 pub struct AssocItemConstraint<'hir> {
