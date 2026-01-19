@@ -480,6 +480,9 @@ lint_improper_ctypes_unsafe_binder = unsafe binders are incompatible with foreig
 lint_improper_gpu_kernel_arg = passing type `{$ty}` to a function with "gpu-kernel" ABI may have unexpected behavior
     .help = use primitive types and raw pointers to get reliable behavior
 
+lint_incorrect_do_not_recommend_args =
+    `#[diagnostic::do_not_recommend]` does not expect any arguments
+
 lint_int_to_ptr_transmutes = transmuting an integer to a pointer creates a pointer without provenance
     .note = this is dangerous because dereferencing the resulting pointer is undefined behavior
     .note_exposed_provenance = exposed provenance semantics can be used to create a pointer based on some previously exposed provenance
@@ -539,7 +542,7 @@ lint_invalid_style = {$is_used_as_inner ->
         [false] crate-level attribute should be an inner attribute: add an exclamation mark: `#![{$name}]`
         *[other] the `#![{$name}]` attribute can only be used at the crate root
     }
-    .note = This attribute does not have an `!`, which means it is applied to this {$target}
+    .note = this attribute does not have an `!`, which means it is applied to this {$target}
 
 lint_invalid_target = `#[{$name}]` attribute cannot be used on {$target}
     .warn = {-lint_previously_accepted}
