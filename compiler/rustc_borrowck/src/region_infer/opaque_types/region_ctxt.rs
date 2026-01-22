@@ -37,7 +37,7 @@ impl<'a, 'tcx> RegionCtxt<'a, 'tcx> {
     /// when applying member constraints.
     pub(super) fn new(
         infcx: &'a BorrowckInferCtxt<'tcx>,
-        universal_region_relations: &'a Frozen<UniversalRegionRelations<'tcx>>,
+        universal_region_relations: &'a UniversalRegionRelations<'tcx>,
         location_map: Rc<DenseLocationMap>,
         constraints: &MirTypeckRegionConstraints<'tcx>,
     ) -> RegionCtxt<'a, 'tcx> {

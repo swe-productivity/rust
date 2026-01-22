@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 
 use rustc_errors::ErrorGuaranteed;
 use rustc_infer::infer::canonical::Canonical;
@@ -71,7 +72,7 @@ where
     {
         let universe_info = error_info.to_universe_info(old_universe);
         for u in (old_universe + 1)..=universe {
-            constraints.universe_causes.insert(u, universe_info.clone());
+            Rc::get_mut(&mut constraints.universe_causes).unwrap().insert(u, universe_info.clone());
         }
     }
 

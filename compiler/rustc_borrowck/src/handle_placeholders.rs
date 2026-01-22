@@ -1,6 +1,8 @@
 //! Logic for lowering higher-kinded outlives constraints
 //! (with placeholders and universes) and turn them into regular
 //! outlives constraints.
+use std::rc::Rc;
+
 use rustc_data_structures::frozen::Frozen;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_data_structures::graph::scc;
@@ -17,8 +19,8 @@ use crate::diagnostics::UniverseInfo;
 use crate::region_infer::values::{LivenessValues, PlaceholderIndices};
 use crate::region_infer::{ConstraintSccs, RegionDefinition, Representative, TypeTest};
 use crate::ty::VarianceDiagInfo;
+use crate::type_check::Locations;
 use crate::type_check::free_region_relations::UniversalRegionRelations;
-use crate::type_check::{Locations, MirTypeckRegionConstraints};
 use crate::universal_regions::UniversalRegions;
 use crate::{BorrowckInferCtxt, NllRegionVariableOrigin};
 
@@ -29,10 +31,10 @@ pub(crate) struct LoweredConstraints<'tcx> {
     pub(crate) definitions: Frozen<IndexVec<RegionVid, RegionDefinition<'tcx>>>,
     pub(crate) scc_annotations: IndexVec<ConstraintSccIndex, RegionTracker>,
     pub(crate) outlives_constraints: Frozen<OutlivesConstraintSet<'tcx>>,
-    pub(crate) type_tests: Vec<TypeTest<'tcx>>,
+    pub(crate) type_tests: Rc<Vec<TypeTest<'tcx>>>,
     pub(crate) liveness_constraints: LivenessValues,
-    pub(crate) universe_causes: FxIndexMap<UniverseIndex, UniverseInfo<'tcx>>,
-    pub(crate) placeholder_indices: PlaceholderIndices<'tcx>,
+    pub(crate) universe_causes: Rc<FxIndexMap<UniverseIndex, UniverseInfo<'tcx>>>,
+    pub(crate) placeholder_indices: Rc<PlaceholderIndices<'tcx>>,
 }
 
 impl<'d, 'tcx, A: scc::Annotation> SccAnnotations<'d, 'tcx, A> {
@@ -263,21 +265,16 @@ pub(super) fn region_definitions<'tcx>(
 ///
 /// Every constraint added by this method is an internal `IllegalUniverse` constraint.
 pub(crate) fn compute_sccs_applying_placeholder_outlives_constraints<'tcx>(
-    constraints: MirTypeckRegionConstraints<'tcx>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    placeholder_indices: Rc<PlaceholderIndices<'tcx>>,
+    liveness_constraints: LivenessValues,
+    mut outlives_constraints: OutlivesConstraintSet<'tcx>,
+    universe_causes: Rc<FxIndexMap<UniverseIndex, UniverseInfo<'tcx>>>,
+    type_tests: Rc<Vec<TypeTest<'tcx>>>,
+    universal_region_relations: &UniversalRegionRelations<'tcx>,
     infcx: &BorrowckInferCtxt<'tcx>,
 ) -> LoweredConstraints<'tcx> {
     let universal_regions = &universal_region_relations.universal_regions;
     let (definitions, has_placeholders) = region_definitions(infcx, universal_regions);
-
-    let MirTypeckRegionConstraints {
-        placeholder_indices,
-        placeholder_index_to_region: _,
-        liveness_constraints,
-        mut outlives_constraints,
-        universe_causes,
-        type_tests,
-    } = constraints;
 
     let fr_static = universal_regions.fr_static;
     let compute_sccs =

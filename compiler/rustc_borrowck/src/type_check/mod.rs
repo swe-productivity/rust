@@ -108,12 +108,12 @@ pub(crate) fn type_check<'tcx>(
     location_map: Rc<DenseLocationMap>,
 ) -> MirTypeckResults<'tcx> {
     let mut constraints = MirTypeckRegionConstraints {
-        placeholder_indices: PlaceholderIndices::default(),
+        placeholder_indices: Rc::new(PlaceholderIndices::default()),
         placeholder_index_to_region: IndexVec::default(),
         liveness_constraints: LivenessValues::with_specific_points(Rc::clone(&location_map)),
         outlives_constraints: OutlivesConstraintSet::default(),
-        type_tests: Vec::default(),
-        universe_causes: FxIndexMap::default(),
+        type_tests: Rc::new(Vec::default()),
+        universe_causes: Rc::new(FxIndexMap::default()),
     };
 
     let CreateResult {
@@ -242,7 +242,7 @@ struct TypeChecker<'a, 'tcx> {
 /// inference computation.
 pub(crate) struct MirTypeckResults<'tcx> {
     pub(crate) constraints: MirTypeckRegionConstraints<'tcx>,
-    pub(crate) universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    pub(crate) universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     pub(crate) region_bound_pairs: Frozen<RegionBoundPairs<'tcx>>,
     pub(crate) known_type_outlives_obligations: Frozen<Vec<ty::PolyTypeOutlivesPredicate<'tcx>>>,
     pub(crate) deferred_closure_requirements: DeferredClosureRequirements<'tcx>,
@@ -251,14 +251,13 @@ pub(crate) struct MirTypeckResults<'tcx> {
 
 /// A collection of region constraints that must be satisfied for the
 /// program to be considered well-typed.
-#[derive(Clone)] // FIXME(#146079)
 pub(crate) struct MirTypeckRegionConstraints<'tcx> {
     /// Maps from a `ty::Placeholder` to the corresponding
     /// `PlaceholderIndex` bit that we will use for it.
     ///
     /// To keep everything in sync, do not insert this set
     /// directly. Instead, use the `placeholder_region` helper.
-    pub(crate) placeholder_indices: PlaceholderIndices<'tcx>,
+    pub(crate) placeholder_indices: Rc<PlaceholderIndices<'tcx>>,
 
     /// Each time we add a placeholder to `placeholder_indices`, we
     /// also create a corresponding "representative" region vid for
@@ -278,9 +277,9 @@ pub(crate) struct MirTypeckRegionConstraints<'tcx> {
 
     pub(crate) outlives_constraints: OutlivesConstraintSet<'tcx>,
 
-    pub(crate) universe_causes: FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>,
+    pub(crate) universe_causes: Rc<FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>>,
 
-    pub(crate) type_tests: Vec<TypeTest<'tcx>>,
+    pub(crate) type_tests: Rc<Vec<TypeTest<'tcx>>>,
 }
 
 impl<'tcx> MirTypeckRegionConstraints<'tcx> {
@@ -291,7 +290,8 @@ impl<'tcx> MirTypeckRegionConstraints<'tcx> {
         infcx: &InferCtxt<'tcx>,
         placeholder: ty::PlaceholderRegion<'tcx>,
     ) -> ty::Region<'tcx> {
-        let placeholder_index = self.placeholder_indices.insert(placeholder);
+        let placeholder_index =
+            Rc::get_mut(&mut self.placeholder_indices).unwrap().insert(placeholder);
         match self.placeholder_index_to_region.get(placeholder_index) {
             Some(&v) => v,
             None => {

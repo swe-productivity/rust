@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use rustc_data_structures::fx::FxHashMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
@@ -246,7 +248,9 @@ impl<'a, 'b, 'tcx> NllTypeRelating<'a, 'b, 'tcx> {
 
     fn create_next_universe(&mut self) -> ty::UniverseIndex {
         let universe = self.type_checker.infcx.create_next_universe();
-        self.type_checker.constraints.universe_causes.insert(universe, self.universe_info.clone());
+        Rc::get_mut(&mut self.type_checker.constraints.universe_causes)
+            .unwrap()
+            .insert(universe, self.universe_info.clone());
         universe
     }
 

@@ -6,7 +6,6 @@ use std::rc::Rc;
 use std::str::FromStr;
 
 use polonius_engine::{Algorithm, AllFacts, Output};
-use rustc_data_structures::frozen::Frozen;
 use rustc_index::IndexSlice;
 use rustc_middle::mir::pretty::PrettyPrintMirOptions;
 use rustc_middle::mir::{Body, MirDumper, PassWhere, Promoted};
@@ -86,20 +85,22 @@ pub(crate) fn compute_closure_requirements_modulo_opaques<'tcx>(
     infcx: &BorrowckInferCtxt<'tcx>,
     body: &Body<'tcx>,
     location_map: Rc<DenseLocationMap>,
-    universal_region_relations: &Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     constraints: &MirTypeckRegionConstraints<'tcx>,
 ) -> Option<ClosureRegionRequirements<'tcx>> {
-    // FIXME(#146079): we shouldn't have to clone all this stuff here.
-    // Computing the region graph should take at least some of it by reference/`Rc`.
     let lowered_constraints = compute_sccs_applying_placeholder_outlives_constraints(
-        constraints.clone(),
+        Rc::clone(&constraints.placeholder_indices),
+        constraints.liveness_constraints.clone(),
+        constraints.outlives_constraints.clone(),
+        Rc::clone(&constraints.universe_causes),
+        Rc::clone(&constraints.type_tests),
         &universal_region_relations,
         infcx,
     );
     let mut regioncx = RegionInferenceContext::new(
         &infcx,
         lowered_constraints,
-        universal_region_relations.clone(),
+        universal_region_relations,
         location_map,
     );
 
@@ -118,7 +119,7 @@ pub(crate) fn compute_regions<'tcx>(
     move_data: &MoveData<'tcx>,
     borrow_set: &BorrowSet<'tcx>,
     location_map: Rc<DenseLocationMap>,
-    universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
     constraints: MirTypeckRegionConstraints<'tcx>,
     mut polonius_facts: Option<AllFacts<RustcFacts>>,
     polonius_context: Option<PoloniusContext>,
@@ -127,7 +128,11 @@ pub(crate) fn compute_regions<'tcx>(
         || infcx.tcx.sess.opts.unstable_opts.polonius.is_legacy_enabled();
 
     let lowered_constraints = compute_sccs_applying_placeholder_outlives_constraints(
-        constraints,
+        constraints.placeholder_indices,
+        constraints.liveness_constraints,
+        constraints.outlives_constraints,
+        constraints.universe_causes,
+        constraints.type_tests,
         &universal_region_relations,
         infcx,
     );

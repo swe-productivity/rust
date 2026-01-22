@@ -105,7 +105,7 @@ pub struct RegionInferenceContext<'tcx> {
     scc_annotations: IndexVec<ConstraintSccIndex, RegionTracker>,
 
     /// Map universe indexes to information on why we created it.
-    universe_causes: FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>,
+    universe_causes: Rc<FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>>,
 
     /// The final inferred values of the region variables; we compute
     /// one value per SCC. To get the value for any given *region*,
@@ -113,11 +113,11 @@ pub struct RegionInferenceContext<'tcx> {
     scc_values: RegionValues<'tcx, ConstraintSccIndex>,
 
     /// Type constraints that we check after solving.
-    type_tests: Vec<TypeTest<'tcx>>,
+    type_tests: Rc<Vec<TypeTest<'tcx>>>,
 
     /// Information about how the universally quantified regions in
     /// scope on this function relate to one another.
-    universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+    universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
 }
 
 #[derive(Debug)]
@@ -292,7 +292,7 @@ impl<'tcx> RegionInferenceContext<'tcx> {
     pub(crate) fn new(
         infcx: &BorrowckInferCtxt<'tcx>,
         lowered_constraints: LoweredConstraints<'tcx>,
-        universal_region_relations: Frozen<UniversalRegionRelations<'tcx>>,
+        universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
         location_map: Rc<DenseLocationMap>,
     ) -> Self {
         let universal_regions = &universal_region_relations.universal_regions;
@@ -599,7 +599,7 @@ impl<'tcx> RegionInferenceContext<'tcx> {
         // the user. Avoid that.
         let mut deduplicate_errors = FxIndexSet::default();
 
-        for type_test in &self.type_tests {
+        for type_test in self.type_tests.iter() {
             debug!("check_type_test: {:?}", type_test);
 
             let generic_ty = type_test.generic_kind.to_ty(tcx);
