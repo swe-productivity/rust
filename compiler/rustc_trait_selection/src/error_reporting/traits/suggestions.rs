@@ -838,12 +838,22 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         if matches!(obligation.cause.code(), ObligationCauseCode::FunctionArg { .. })
             && obligation.cause.span.can_be_used_for_suggestions()
         {
-            let (span, sugg) = if let Some(snippet) =
-                self.tcx.sess.source_map().span_to_snippet(obligation.cause.span).ok()
+            // For inline closures (including async closures), suggest wrapping the entire
+            // closure expression. We check for "async " and "async|" to only match inline
+            // async closures, avoiding variables like `async_closure` or other constructs.
+            let (span, sugg) = if let Ok(snippet) =
+                self.tcx.sess.source_map().span_to_snippet(obligation.cause.span)
                 && (snippet.starts_with("|")
                     || snippet.starts_with("async ")
                     || snippet.starts_with("async|"))
             {
+                // Check if this closure already has a call at the end (e.g., `|| {}()` or
+                // `async || {}()`). If so, suppress this suggestion as it would be redundant
+                // with the E0618 error.
+                if snippet.ends_with("()") {
+                    return false;
+                }
+
                 (obligation.cause.span, format!("({snippet})({args})"))
             } else {
                 (obligation.cause.span.shrink_to_hi(), format!("({args})"))
