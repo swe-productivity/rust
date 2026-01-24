@@ -1,4 +1,5 @@
 //@ run-rustfix
+//@ rustfix-only-machine-applicable
 pub struct DataStruct();
 
 pub struct HelperStruct<'n> {
