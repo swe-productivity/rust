@@ -200,6 +200,7 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
 
                 let mut has_suggest_reborrow = false;
                 if !seen_spans.contains(&move_span) {
+                    self.suggest_reordering_fields(&mut err, use_spans, move_spans);
                     self.suggest_ref_or_clone(
                         mpi,
                         &mut err,
@@ -315,6 +316,60 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
         }
     }
 
+    fn suggest_reordering_fields(
+        &self,
+        err: &mut Diag<'infcx>,
+        use_spans: UseSpans<'tcx>,
+        move_spans: UseSpans<'tcx>,
+    ) {
+        let use_span = use_spans.args_or_use();
+        let move_span = match move_spans {
+            UseSpans::ClosureUse { capture_kind_span, .. } => capture_kind_span,
+            _ => move_spans.args_or_use(),
+        };
+        let tcx = self.infcx.tcx;
+
+        if let Some(body) = tcx.hir_maybe_body_owned_by(self.mir_def_id()) {
+            let expr = body.value;
+            let mut finder = ExpressionFinder {
+                expr_span: move_span,
+                expr: None,
+                pat: None,
+                parent_pat: None,
+                tcx,
+            };
+            finder.visit_expr(expr);
+            if let Some(expr) = finder.expr
+                && move_span < use_span
+            {
+                for (_, expr) in tcx.hir_parent_iter(expr.hir_id) {
+                    if let hir::Node::Expr(expr) = expr
+                        && let hir::ExprKind::Struct(_, fields, _) = expr.kind
+                        && let Some(move_field) = fields.iter().find(|f| f.span.contains(move_span))
+                        && let Some(use_field) = fields.iter().find(|f| f.span.contains(use_span))
+                        && move_field.hir_id != use_field.hir_id
+                        && let Ok(move_snippet) =
+                            tcx.sess.source_map().span_to_snippet(move_field.span)
+                        && let Ok(use_snippet) =
+                            tcx.sess.source_map().span_to_snippet(use_field.span)
+                    {
+                        // If the moved value and the usage are both within struct field initializers,
+                        // it may be possible to reorder them to avoid cloning.
+                        err.multipart_suggestion_verbose(
+                            format!(
+                                "consider initializing `{}` before `{}`",
+                                use_field.ident, move_field.ident
+                            ),
+                            vec![(move_field.span, use_snippet), (use_field.span, move_snippet)],
+                            Applicability::MaybeIncorrect,
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     fn suggest_ref_or_clone(
         &self,
         mpi: MovePathIndex,
@@ -328,49 +383,7 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
             UseSpans::ClosureUse { capture_kind_span, .. } => capture_kind_span,
             _ => move_spans.args_or_use(),
         };
-        struct ExpressionFinder<'hir> {
-            expr_span: Span,
-            expr: Option<&'hir hir::Expr<'hir>>,
-            pat: Option<&'hir hir::Pat<'hir>>,
-            parent_pat: Option<&'hir hir::Pat<'hir>>,
-            tcx: TyCtxt<'hir>,
-        }
-        impl<'hir> Visitor<'hir> for ExpressionFinder<'hir> {
-            type NestedFilter = OnlyBodies;
 
-            fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
-                self.tcx
-            }
-
-            fn visit_expr(&mut self, e: &'hir hir::Expr<'hir>) {
-                if e.span == self.expr_span {
-                    self.expr = Some(e);
-                }
-                hir::intravisit::walk_expr(self, e);
-            }
-            fn visit_pat(&mut self, p: &'hir hir::Pat<'hir>) {
-                if p.span == self.expr_span {
-                    self.pat = Some(p);
-                }
-                if let hir::PatKind::Binding(hir::BindingMode::NONE, _, i, sub) = p.kind {
-                    if i.span == self.expr_span || p.span == self.expr_span {
-                        self.pat = Some(p);
-                    }
-                    // Check if we are in a situation of `ident @ ident` where we want to suggest
-                    // `ref ident @ ref ident` or `ref ident @ Struct { ref ident }`.
-                    if let Some(subpat) = sub
-                        && self.pat.is_none()
-                    {
-                        self.visit_pat(subpat);
-                        if self.pat.is_some() {
-                            self.parent_pat = Some(p);
-                        }
-                        return;
-                    }
-                }
-                hir::intravisit::walk_pat(self, p);
-            }
-        }
         let tcx = self.infcx.tcx;
         if let Some(body) = tcx.hir_maybe_body_owned_by(self.mir_def_id()) {
             let expr = body.value;
@@ -4505,6 +4518,50 @@ impl<'v> Visitor<'v> for ReferencedStatementsVisitor<'_> {
             hir::StmtKind::Semi(expr) if self.0.contains(&expr.span) => ControlFlow::Break(()),
             _ => ControlFlow::Continue(()),
         }
+    }
+}
+
+struct ExpressionFinder<'hir> {
+    expr_span: Span,
+    expr: Option<&'hir hir::Expr<'hir>>,
+    pat: Option<&'hir hir::Pat<'hir>>,
+    parent_pat: Option<&'hir hir::Pat<'hir>>,
+    tcx: TyCtxt<'hir>,
+}
+impl<'hir> Visitor<'hir> for ExpressionFinder<'hir> {
+    type NestedFilter = OnlyBodies;
+
+    fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+        self.tcx
+    }
+
+    fn visit_expr(&mut self, e: &'hir hir::Expr<'hir>) {
+        if e.span == self.expr_span {
+            self.expr = Some(e);
+        }
+        hir::intravisit::walk_expr(self, e);
+    }
+    fn visit_pat(&mut self, p: &'hir hir::Pat<'hir>) {
+        if p.span == self.expr_span {
+            self.pat = Some(p);
+        }
+        if let hir::PatKind::Binding(hir::BindingMode::NONE, _, i, sub) = p.kind {
+            if i.span == self.expr_span || p.span == self.expr_span {
+                self.pat = Some(p);
+            }
+            // Check if we are in a situation of `ident @ ident` where we want to suggest
+            // `ref ident @ ref ident` or `ref ident @ Struct { ref ident }`.
+            if let Some(subpat) = sub
+                && self.pat.is_none()
+            {
+                self.visit_pat(subpat);
+                if self.pat.is_some() {
+                    self.parent_pat = Some(p);
+                }
+                return;
+            }
+        }
+        hir::intravisit::walk_pat(self, p);
     }
 }
 

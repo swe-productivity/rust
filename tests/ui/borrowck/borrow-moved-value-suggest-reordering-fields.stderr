@@ -1,0 +1,44 @@
+error[E0382]: borrow of moved value: `a`
+  --> $DIR/borrow-moved-value-suggest-reordering-fields.rs:14:16
+   |
+LL |     fn new(a: String) -> Self {
+   |            - move occurs because `a` has type `String`, which does not implement the `Copy` trait
+LL |         Self {
+LL |             a,
+   |             - value moved here
+...
+LL |             b: a.len(),
+   |                ^ value borrowed here after move
+   |
+help: consider initializing `b` before `a`
+   |
+LL ~             b: a.len(),
+LL |
+LL |
+LL ~             a,
+   |
+help: consider cloning the value if the performance cost is acceptable
+   |
+LL |             a: a.clone(),
+   |              +++++++++++
+
+error[E0382]: borrow of moved value: `a`
+  --> $DIR/borrow-moved-value-suggest-reordering-fields.rs:25:17
+   |
+LL |     fn dont_suggest_overlapping_span_fields(a: String) -> Self {
+   |                                             - move occurs because `a` has type `String`, which does not implement the `Copy` trait
+...
+LL |                 let b = a;
+   |                         - value moved here
+LL |
+LL |                 a.len()
+   |                 ^ value borrowed here after move
+   |
+help: consider cloning the value if the performance cost is acceptable
+   |
+LL |                 let b = a.clone();
+   |                          ++++++++
+
+error: aborting due to 2 previous errors
+
+For more information about this error, try `rustc --explain E0382`.
