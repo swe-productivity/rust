@@ -86,12 +86,16 @@ pub(crate) fn compute_closure_requirements_modulo_opaques<'tcx>(
     body: &Body<'tcx>,
     location_map: Rc<DenseLocationMap>,
     universal_region_relations: Rc<UniversalRegionRelations<'tcx>>,
-    constraints: &MirTypeckRegionConstraints<'tcx>,
-) -> Option<ClosureRegionRequirements<'tcx>> {
-    // FIXME(#146079): we shouldn't have to clone all this stuff here.
-    // Computing the region graph should take at least some of it by reference/`Rc`.
+    constraints: MirTypeckRegionConstraints<'tcx>,
+) -> (MirTypeckRegionConstraints<'tcx>, Option<ClosureRegionRequirements<'tcx>>) {
+    let outlives_constraints = constraints.outlives_constraints.clone();
+
     let lowered_constraints = compute_sccs_applying_placeholder_outlives_constraints(
-        constraints.clone(),
+        constraints.placeholder_indices,
+        constraints.liveness_constraints,
+        outlives_constraints,
+        constraints.universe_causes,
+        constraints.type_tests,
         &universal_region_relations,
         infcx,
     );
@@ -103,7 +107,17 @@ pub(crate) fn compute_closure_requirements_modulo_opaques<'tcx>(
     );
 
     let (closure_region_requirements, _nll_errors) = regioncx.solve(infcx, body, None);
-    closure_region_requirements
+    (
+        MirTypeckRegionConstraints {
+            placeholder_indices: regioncx.scc_values.placeholder_indices,
+            placeholder_index_to_region: constraints.placeholder_index_to_region,
+            liveness_constraints: regioncx.liveness_constraints,
+            outlives_constraints: constraints.outlives_constraints,
+            universe_causes: regioncx.universe_causes,
+            type_tests: regioncx.type_tests,
+        },
+        closure_region_requirements,
+    )
 }
 
 /// Computes the (non-lexical) regions from the input MIR.
@@ -126,7 +140,11 @@ pub(crate) fn compute_regions<'tcx>(
         || infcx.tcx.sess.opts.unstable_opts.polonius.is_legacy_enabled();
 
     let lowered_constraints = compute_sccs_applying_placeholder_outlives_constraints(
-        constraints,
+        constraints.placeholder_indices,
+        constraints.liveness_constraints,
+        constraints.outlives_constraints,
+        constraints.universe_causes,
+        constraints.type_tests,
         &universal_region_relations,
         infcx,
     );

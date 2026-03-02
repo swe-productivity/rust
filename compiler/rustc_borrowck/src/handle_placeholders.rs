@@ -8,7 +8,7 @@ use rustc_data_structures::graph::scc::Sccs;
 use rustc_index::IndexVec;
 use rustc_infer::infer::RegionVariableOrigin;
 use rustc_middle::mir::ConstraintCategory;
-use rustc_middle::ty::{RegionVid, UniverseIndex};
+use rustc_middle::ty::{self, RegionVid, UniverseIndex};
 use tracing::{debug, trace};
 
 use crate::constraints::{ConstraintSccIndex, OutlivesConstraintSet};
@@ -17,8 +17,8 @@ use crate::diagnostics::UniverseInfo;
 use crate::region_infer::values::{LivenessValues, PlaceholderIndices};
 use crate::region_infer::{ConstraintSccs, RegionDefinition, Representative, TypeTest};
 use crate::ty::VarianceDiagInfo;
+use crate::type_check::Locations;
 use crate::type_check::free_region_relations::UniversalRegionRelations;
-use crate::type_check::{Locations, MirTypeckRegionConstraints};
 use crate::universal_regions::UniversalRegions;
 use crate::{BorrowckInferCtxt, NllRegionVariableOrigin};
 
@@ -263,21 +263,16 @@ pub(super) fn region_definitions<'tcx>(
 ///
 /// Every constraint added by this method is an internal `IllegalUniverse` constraint.
 pub(crate) fn compute_sccs_applying_placeholder_outlives_constraints<'tcx>(
-    constraints: MirTypeckRegionConstraints<'tcx>,
+    placeholder_indices: PlaceholderIndices<'tcx>,
+    liveness_constraints: LivenessValues,
+    mut outlives_constraints: OutlivesConstraintSet<'tcx>,
+    universe_causes: FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>,
+    type_tests: Vec<TypeTest<'tcx>>,
     universal_region_relations: &UniversalRegionRelations<'tcx>,
     infcx: &BorrowckInferCtxt<'tcx>,
 ) -> LoweredConstraints<'tcx> {
     let universal_regions = &universal_region_relations.universal_regions;
     let (definitions, has_placeholders) = region_definitions(infcx, universal_regions);
-
-    let MirTypeckRegionConstraints {
-        placeholder_indices,
-        placeholder_index_to_region: _,
-        liveness_constraints,
-        mut outlives_constraints,
-        universe_causes,
-        type_tests,
-    } = constraints;
 
     let fr_static = universal_regions.fr_static;
     let compute_sccs =

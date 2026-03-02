@@ -87,7 +87,7 @@ pub struct RegionInferenceContext<'tcx> {
     /// regions, these start out empty and steadily grow, though for
     /// each universally quantified region R they start out containing
     /// the entire CFG and `end(R)`.
-    liveness_constraints: LivenessValues,
+    pub(crate) liveness_constraints: LivenessValues,
 
     /// The outlives constraints computed by the type-check.
     constraints: Frozen<OutlivesConstraintSet<'tcx>>,
@@ -105,15 +105,15 @@ pub struct RegionInferenceContext<'tcx> {
     scc_annotations: IndexVec<ConstraintSccIndex, RegionTracker>,
 
     /// Map universe indexes to information on why we created it.
-    universe_causes: FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>,
+    pub(crate) universe_causes: FxIndexMap<ty::UniverseIndex, UniverseInfo<'tcx>>,
 
     /// The final inferred values of the region variables; we compute
     /// one value per SCC. To get the value for any given *region*,
     /// you first find which scc it is a part of.
-    scc_values: RegionValues<'tcx, ConstraintSccIndex>,
+    pub(crate) scc_values: RegionValues<'tcx, ConstraintSccIndex>,
 
     /// Type constraints that we check after solving.
-    type_tests: Vec<TypeTest<'tcx>>,
+    pub(crate) type_tests: Vec<TypeTest<'tcx>>,
 
     /// Information about how the universally quantified regions in
     /// scope on this function relate to one another.
